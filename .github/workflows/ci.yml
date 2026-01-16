@@ -1,7 +1,7 @@
 name: CI
 on: [push]
 env:
-  DEF_CFLAGS: -O2 -g -Wall
+  DEF_CFLAGS: -O2 -g -Wall -s
 
 jobs:
   gcc-build-and-test:
@@ -28,14 +28,13 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y clang
-    - run: ./configure CC=clang CFLAGS="$DEF_CFLAGS"
+    - run: ./configure CC=clang CFLAGS="$DEF_CFLAGS" LDFLAGS="-static"
     - run: make -j8 check V=1 CFLAGS_WARN="-Werror"
-    - run: make -j8 install V=1 DESTDIR=$PWD/installdir
-    - run: make -j8 uninstall V=1 DESTDIR=$PWD/installdir
+    - run: make -j8 install V=1 DESTDIR=$PWD/linux-x86_64
     - uses: actions/upload-artifact@v4
       with:
-        name: ubuntu-config.h
-        path: lib/config.h
+        name: linux-x86_64
+        path: linux-x86_64
     - if: failure()
       uses: actions/upload-artifact@v4
       with:
@@ -53,8 +52,11 @@ jobs:
         sudo apt-get install -y gcc-multilib
     - run: ./configure CC=gcc CFLAGS="$DEF_CFLAGS -m32" LDFLAGS="-m32"
     - run: make -j8 check V=1 CFLAGS_WARN="-Werror"
-    - run: make -j8 install V=1 DESTDIR=$PWD/installdir
-    - run: make -j8 uninstall V=1 DESTDIR=$PWD/installdir
+    - run: make -j8 install V=1 DESTDIR=$PWD/linux-x86
+    - uses: actions/upload-artifact@v4
+      with:
+        name: linux-x86
+        path: linux-x86
     - if: failure()
       uses: actions/upload-artifact@v4
       with:
@@ -111,12 +113,11 @@ jobs:
       with:
         name: macos-test-fail-logs
         path: tests/*.failed
-    - run: make -j8 install DESTDIR=$PWD/installdir
-    - run: make -j8 uninstall DESTDIR=$PWD/installdir
+    - run: make -j8 install DESTDIR=$PWD/macos-aarch64
     - uses: actions/upload-artifact@v4
       with:
-        name: macOS-config.h
-        path: lib/config.h
+        name: macOS-aarch64
+        path: macos-aarch64
 
   windows-msys2-build:
     name: Build mke2fs on Windows with ${{matrix.sys}}
@@ -151,10 +152,12 @@ jobs:
     - run: make -j8 -C lib/e2p/ all V=1 CFLAGS_WARN="-Werror"
     - run: make -j8 -C misc/ mke2fs V=1 CFLAGS_WARN="-Werror"
     - run: misc/mke2fs.exe -T ext4 image.ext4 128M
+    - run: mkdir windows-${{matrix.env}}
+    - run: cp **/*.exe windows-${{matrix.env}}
     - uses: actions/upload-artifact@v4
       with:
-        name: windows-${{matrix.env}}-config.h
-        path: lib/config.h
+        name: windows-${{matrix.sys}}
+        path: windows-${{matrix.env}}
 
   # Jobs that cross-compile e2fsprogs for Android using the Android NDK.  Note
   # that these use the autotools-based build system, which makes them a bit
@@ -182,9 +185,10 @@ jobs:
         export LD=$TOOLCHAIN/bin/ld
         export RANLIB=$TOOLCHAIN/bin/llvm-ranlib
         export STRIP=$TOOLCHAIN/bin/llvm-strip
-        ./configure --host=${{matrix.target}} CFLAGS="$DEF_CFLAGS"
+        ./configure --host=${{matrix.target}} CFLAGS="$DEF_CFLAGS" LDFLAGS="-static"
     - run: make -j8 V=1 CFLAGS_WARN="-Werror"
+    - run: make install DESTDIR=$PWD/android-${{matrix.arch}}
     - uses: actions/upload-artifact@v4
       with:
-        name: android-${{matrix.arch}}-config.h
-        path: lib/config.h
+        name: android-${{matrix.arch}}
+        path: android-${{matrix.arch}}
